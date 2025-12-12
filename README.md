@@ -48,17 +48,20 @@ Fetches halal-compliant stocks from the Zoya API to create a universe of investm
 - 💾 **Progress Saving** - Checkpoints every 50 stocks
 
 ### Output Files
+
 | File | Format | Content |
 |------|--------|---------|
 | `halal_universe.txt` | Line-separated | 526 halal stocks |
 | `halal_universe_comma.txt` | Comma-separated | Same, easier to copy |
 
 ### How to Run
+
 ```powershell
 julia build_halal_universe.jl
 ```
 
 ### Configuration
+
 ```julia
 API_KEY = "live-03e8bf0f-6bda-40b5-9d0e-ec884e8c6c9b"
 MIN_PRICE = 5.00
@@ -69,7 +72,7 @@ EXCHANGES = ["XNYS", "XNAS", "XASE", "ARCX"]
 
 ## 🚀 Stage 2: AI Stock Analyzer
 
-**Script:** `stock_picker.jl` (Julia)
+**Script:** `stock_picker.jl`
 
 ### Purpose
 Performs comprehensive AI analysis with neural network predictions, backtest validation, risk metrics, analyst ratings, and news sentiment to identify champion investment opportunities.
@@ -144,6 +147,7 @@ Final Score = (Base Score × Backtest Multiplier) + Risk Adjustment
 - 🎯 **Rate Limiting** - Respects API limits
 
 ### Data Sources
+
 | Source | Purpose | Authentication |
 |--------|---------|----------------|
 | Yahoo Finance | Historical prices (730 days) | None (free) |
@@ -156,20 +160,28 @@ Final Score = (Base Score × Backtest Multiplier) + Risk Adjustment
    - Sheet 2: Champions Only with detailed explanations
 3. 📉 **PNG Chart** - Top 10 visual ranking (1400×900)
 
+---
+
 ## 🚀 How to Run
 
 ### Quick Start (15 stocks from tickers.txt)
+
 ```powershell
 $env:JULIA_NUM_THREADS=12; julia stock_picker.jl
 ```
+
 ⏱️ **~5-10 minutes**
 
 ### Full Universe Analysis (526 halal stocks)
+
 ```powershell
 Copy-Item halal_universe.txt tickers.txt
 $env:JULIA_NUM_THREADS=12; julia stock_picker.jl
 ```
+
 ⏱️ **~2-3 hours**
+
+---
 
 ## 📁 Output Files
 
@@ -180,6 +192,8 @@ All outputs saved to `export/` directory with timestamp: `YYYYMMDD_HHMMSS`
 | `stock_predictions_*.csv` | Complete dataset (all metrics) |
 | `stock_predictions_*.xlsx` | **2-Sheet Excel Report**<br>• Sheet 1: All results<br>• Sheet 2: Champions only |
 | `stock_predictions_*.png` | Top 10 bar chart with badges |
+
+---
 
 ## ⚙️ Configuration
 
@@ -207,6 +221,7 @@ const NEWS_WEIGHT = 0.08        # Sentiment analysis
 ## 📊 Sample Output
 
 ### Terminal Output
+
 ```
 [INFO] Processing 15 stocks with 12 parallel workers
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -262,6 +277,7 @@ Stock AAPL:
 ## 💻 Technical Requirements
 
 ### System Requirements
+
 | Component | Requirement |
 |-----------|-------------|
 | **Julia** | 1.12+ |
@@ -270,6 +286,7 @@ Stock AAPL:
 | **GPU** | Optional (NVIDIA RTX 4090, currently disabled) |
 
 ### Required Julia Packages
+
 ```julia
 HTTP          # API requests
 JSON3         # JSON parsing  
@@ -285,6 +302,7 @@ Plots         # Chart generation
 ```
 
 ### Quick Installation
+
 ```powershell
 julia -e 'import Pkg; Pkg.add(["HTTP", "JSON3", "DataFrames", "Flux", "CSV", "XLSX", "Plots"])'
 ```
@@ -294,24 +312,31 @@ julia -e 'import Pkg; Pkg.add(["HTTP", "JSON3", "DataFrames", "Flux", "CSV", "XL
 ## 🔧 Troubleshooting
 
 ### ⚠️ API Rate Limits
+
 ✅ **Built-in protection:**
 - Exponential backoff retry (max 5 attempts)
 - Sequential downloads (prevents threading crashes)
 - Random delays between requests
 
 ### ⚠️ Memory Issues
+
 If you experience crashes:
+
 ```julia
 const MAX_PARALLEL = 6    # Reduce from 12
 const HISTORY_DAYS = 365  # Reduce from 730
 ```
 
 ### ⚠️ GPU Support (Currently Disabled)
+
 To re-enable CUDA acceleration:
+
 ```powershell
 julia -e 'import Pkg; Pkg.update("CUDA"); Pkg.build("CUDA")'
 ```
+
 Then in `stock_picker.jl`:
+
 ```julia
 using CUDA
 const USE_GPU = true
@@ -322,12 +347,14 @@ const USE_GPU = true
 ## 🎓 Understanding Results
 
 ### 🏆 Champion Stocks
+
 These meet **ALL three criteria:**
 1. ✅ 70%+ backtest accuracy (proven predictions)
 2. ✅ <30% max drawdown (controlled risk)  
 3. ✅ Positive combined score (bullish signal)
 
 ### 📊 Score Interpretation
+
 | Score | Signal | Action |
 |-------|--------|--------|
 | **>6%** | Strong Buy | High confidence entry |
@@ -336,6 +363,7 @@ These meet **ALL three criteria:**
 | **<0%** | Avoid | Bearish signal |
 
 ### 🎯 Excel Sheet 2 Columns Explained
+
 | Column | Meaning |
 |--------|---------|
 | **Backtest_Rating** | How accurate past predictions were |
@@ -370,62 +398,82 @@ Julia_Predicto_Test/
 
 ---
 
-## 🎓 Understanding the Results
-
-### Combined Score Interpretation
-- **> 30%**: Strong buy signal with multiple confirming factors
-- **10-30%**: Moderate buy signal, consider entry points
-- **0-10%**: Weak signal, monitor for better opportunities
-- **< 0%**: Bearish signal, avoid or consider shorting
-
-### Component Analysis
-- **Model Prediction**: Raw AI-predicted price movement
-- **Analyst Score**: Professional consensus (-2 to +2 scale)
-- **News Buzz**: Market attention/sentiment (0.0 to 1.0 scale)
-
-### Best Practices
-1. Focus on stocks with positive scores across all three factors
-2. High analyst scores indicate institutional confidence
-3. High buzz scores suggest market momentum
-4. Verify predictions against your own research
-
----
-
-## 📞 API Keys & Configuration
+## 🔑 API Configuration
 
 ### Zoya API (Halal Compliance)
-- **Key**: `live-03e8bf0f-6bda-40b5-9d0e-ec884e8c6c9b`
-- **Location**: `build_halal_universe.jl`
 
-### Finnhub API (Analyst Ratings & News)
-- **Key**: `d4kp2j1r01qvpdollej0d4kp2j1r01qvpdollejg`
-- **Location**: `stock_picker.jl`
+```julia
+API_KEY = "live-03e8bf0f-6bda-40b5-9d0e-ec884e8c6c9b"
+FILE: build_halal_universe.jl
+```
+
+### Finnhub API (Analyst Ratings & News Sentiment)
+
+```julia
+FINNHUB_KEY = "d4kp2j1r01qvpdollej0d4kp2j1r01qvpdollejg"
+FILE: stock_picker.jl
+```
 
 ### Yahoo Finance API
 - **Authentication**: None required (free public access)
-- **Rate Limits**: Generous, built-in retry logic handles any issues
+- **Rate Limits**: Generous (built-in retry logic)
 
 ---
 
-## 🌟 Future Enhancements
+## 🎯 Best Practices
 
-- [ ] GPU acceleration (re-enable CUDA support)
-- [ ] Historical backtesting validation
+### ✅ DO
+- Focus on **Champion stocks** (Sheet 2 in Excel)
+- Prioritize stocks with 70%+ backtest accuracy
+- Consider risk levels (prefer SAFE or LOW RISK)
+- Check Sharpe ratios (>1.5 is excellent)
+- Verify against your own research
+
+### ❌ DON'T
+- Ignore max drawdown percentages
+- Rely solely on AI predictions
+- Invest in stocks with <50% backtest accuracy
+- Ignore negative news sentiment
+- Use predictions as sole investment basis
+
+---
+
+## 🌟 Roadmap
+
+- [ ] GPU acceleration (re-enable CUDA)
+- [ ] Portfolio optimization (Modern Portfolio Theory)
 - [ ] Stop-loss recommendations
 - [ ] Price target calculations
-- [ ] Portfolio optimization across top picks
-- [ ] Real-time monitoring and alerts
-- [ ] Integration with trading platforms
+- [ ] Real-time monitoring dashboard
+- [ ] Automated trading integration
+- [ ] Risk-adjusted position sizing
 
 ---
 
 ## ⚖️ Disclaimer
 
-This software is provided for educational and research purposes only. Stock predictions are based on historical data and AI models, which do not guarantee future performance. Always conduct your own research and consult with qualified financial advisors before making investment decisions. The halal compliance data is sourced from Zoya and should be verified according to your own Islamic financial guidelines.
+**For Educational Purposes Only**
+
+This software provides AI-based stock analysis for educational and research purposes. Stock predictions are based on historical data and mathematical models, which **do not guarantee future performance**. 
+
+⚠️ **Important:**
+- Always conduct your own research
+- Consult qualified financial advisors
+- Verify halal compliance with your own Islamic scholars
+- Past performance does not indicate future results
+- Invest only what you can afford to lose
+
+The halal compliance data is sourced from Zoya API and should be independently verified according to your personal Islamic financial principles.
 
 ---
 
-**Built with ❤️ using Julia, Python, and AI**
-#   P r e d i c t o _ J u l i a _ A L T 
- 
- 
+## 👨‍💻 Author
+
+**Built with ❤️ using Julia AI & Deep Learning**
+
+📧 Questions? Open an issue on GitHub  
+⭐ Like this project? Give it a star!
+
+---
+
+**Predicto Julia ALT** - *Advanced Stock Analysis with AI-Powered Insights*
