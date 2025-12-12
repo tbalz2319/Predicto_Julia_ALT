@@ -1,0 +1,13 @@
+# Output directories
+archive/
+export/
+
+# Julia compiled files
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+deps/deps.jl
+
+# OS generated files
+.DS_Store
+Thumbs.db
