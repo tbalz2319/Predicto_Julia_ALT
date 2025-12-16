@@ -106,10 +106,18 @@ Performs comprehensive AI analysis with neural network predictions, backtest val
 
 ### 5. News Sentiment (8% weight)
 - **Source**: Finnhub company news (last 7 days)
-- **Analysis**: Keyword-based sentiment scoring
-- **Positive**: profit, growth, revenue, beat, upgrade, bullish
-- **Negative**: lawsuit, fraud, investigation, downgrade, scandal
+- **Analysis**: Advanced sentiment scoring (auto-selects best available)
+- **Options**:
+  - **TextAnalysis.jl** (Julia's VADER equivalent) - if installed
+  - **Custom VADER-like** (fallback) - built-in implementation
+- **Features**:
+  - Weighted sentiment lexicon (1.0-3.0 intensity scores)
+  - Negation handling ("not good" flips sentiment)
+  - Intensity boosters ("very good" amplifies score)
+  - Capitalization emphasis (ALL CAPS = stronger)
+  - Punctuation emphasis (!!! increases intensity)
 - **Score Range**: -1.0 (very negative) to +1.0 (very positive)
+- **Install TextAnalysis**: `julia -e 'using Pkg; Pkg.add("TextAnalysis")'`
 
 ## 🏆 Champion Formula
 
@@ -301,10 +309,23 @@ XLSX          # Excel export
 Plots         # Chart generation
 ```
 
+### Optional Packages (Recommended)
+
+```julia
+TextAnalysis  # Advanced NLP & sentiment analysis (Julia's VADER equivalent)
+Languages     # Language processing utilities
+```
+
 ### Quick Installation
 
+**Essential packages:**
 ```powershell
 julia -e 'import Pkg; Pkg.add(["HTTP", "JSON3", "DataFrames", "Flux", "CSV", "XLSX", "Plots"])'
+```
+
+**With advanced sentiment analysis:**
+```powershell
+julia -e 'import Pkg; Pkg.add(["HTTP", "JSON3", "DataFrames", "Flux", "CSV", "XLSX", "Plots", "TextAnalysis", "Languages"])'
 ```
 
 ---

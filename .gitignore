@@ -2,6 +2,11 @@
 archive/
 export/
 
+# Output files (CSV, Excel, PNG)
+*.csv
+*.xlsx
+*.png
+
 # Julia compiled files
 *.jl.cov
 *.jl.*.cov

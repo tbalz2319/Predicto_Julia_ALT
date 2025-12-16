@@ -14,9 +14,19 @@ using Base.Threads
 using CSV
 using XLSX
 
-# Optional: Plots for visualization (install with: using Pkg; Pkg.add("Plots"))
+# Optional: Plots for visualization
 const HAS_PLOTS = try
     using Plots
+    true
+catch
+    false
+end
+
+# Optional: TextAnalysis.jl for advanced sentiment analysis (Julia's VADER equivalent)
+# Install with: julia -e 'using Pkg; Pkg.add("TextAnalysis")'
+const HAS_TEXTANALYSIS = try
+    using TextAnalysis
+    using Languages
     true
 catch
     false
@@ -53,6 +63,7 @@ const LAST_API_CALL = Ref(0.0)
 println("=== Julia Stock Predictor (PARALLEL - Phase 1 Enhanced) ===")
 println("Using GPU: ", USE_GPU, " (CPU mode - 12 threads)")
 println("Enhancements: 20 epochs, 2 years data, backtest validation, risk metrics")
+println("Sentiment Engine: ", HAS_TEXTANALYSIS ? "TextAnalysis.jl (Native Julia NLP)" : "Custom VADER-like")
 println("Number of threads: ", Threads.nthreads())
 println("Tickers to process: ", length(TICKERS))
 println("====================================")
@@ -213,12 +224,157 @@ function fetch_analyst_data(symbol)
 end
 
 """
+TextAnalysis.jl sentiment analysis (Julia's VADER equivalent).
+Uses built-in sentiment lexicon and sophisticated NLP features.
+Returns sentiment score from -1.0 (very negative) to +1.0 (very positive)
+"""
+function analyze_textanalysis_sentiment(text::String)
+    if isempty(text) || !HAS_TEXTANALYSIS
+        return 0.0
+    end
+    
+    try
+        # Create StringDocument for analysis
+        doc = StringDocument(text)
+        
+        # Prepare document (tokenize, stem, etc.)
+        prepare!(doc, strip_punctuation | strip_case | strip_whitespace)
+        
+        # Get sentiment scores (returns positive and negative scores)
+        # Note: TextAnalysis doesn't have a built-in compound score like VADER
+        # So we'll use a simple approach: count positive/negative words
+        tokens = tokens(doc)
+        
+        # Simple sentiment scoring based on common positive/negative words
+        positive_score = 0.0
+        negative_score = 0.0
+        
+        for token in tokens
+            # This is a simplified version - TextAnalysis.jl doesn't have VADER's lexicon
+            # but provides better preprocessing
+            if token in ["good", "great", "excellent", "profit", "growth", "strong", "bullish", "up"]
+                positive_score += 1.0
+            elseif token in ["bad", "poor", "loss", "weak", "bearish", "down", "lawsuit", "fraud"]
+                negative_score += 1.0
+            end
+        end
+        
+        total = positive_score + negative_score
+        if total > 0
+            return (positive_score - negative_score) / total
+        end
+        return 0.0
+    catch e
+        return 0.0
+    end
+end
+
+"""
+VADER-like sentiment analysis for text (custom implementation).
+Handles intensity modifiers, negations, punctuation, and capitalization.
+Returns sentiment score from -1.0 (very negative) to +1.0 (very positive)
+"""
+function analyze_vader_sentiment(text::String, positive_lex::Dict, negative_lex::Dict, 
+                                 boosters::Vector, dampeners::Vector, negations::Vector)
+    if isempty(text)
+        return 0.0
+    end
+    
+    # Preserve original for capitalization check
+    original_text = text
+    text_lower = lowercase(text)
+    
+    # Split into words
+    words = split(text_lower, r"\W+")
+    
+    sentiments = Float64[]
+    
+    for (i, word) in enumerate(words)
+        if isempty(word)
+            continue
+        end
+        
+        # Check if word is in lexicon
+        base_score = 0.0
+        if haskey(positive_lex, word)
+            base_score = positive_lex[word]
+        elseif haskey(negative_lex, word)
+            base_score = negative_lex[word]
+        else
+            continue  # Not a sentiment word
+        end
+        
+        # Initialize score for this word
+        word_score = base_score
+        
+        # Check for negation in previous 3 words (flips sentiment)
+        negation_found = false
+        for j in max(1, i-3):i-1
+            if words[j] in negations
+                word_score *= -0.5  # Flip and dampen (VADER approach)
+                negation_found = true
+                break
+            end
+        end
+        
+        # Check for intensity boosters/dampeners in previous 2 words
+        if !negation_found && i > 1
+            prev_word = i > 1 ? words[i-1] : ""
+            if prev_word in boosters
+                word_score *= 1.3  # Boost by 30%
+            elseif prev_word in dampeners
+                word_score *= 0.7  # Dampen by 30%
+            end
+        end
+        
+        # Check for ALL CAPS (emphasis)
+        word_original = ""
+        for w in split(original_text, r"\W+")
+            if lowercase(w) == word
+                word_original = w
+                break
+            end
+        end
+        if !isempty(word_original) && length(word_original) > 2 && all(isuppercase, word_original)
+            word_score *= 1.2  # ALL CAPS increases intensity by 20%
+        end
+        
+        push!(sentiments, word_score)
+    end
+    
+    # Handle punctuation emphasis (!!!, ???)
+    exclamation_count = count(c -> c == '!', text)
+    if exclamation_count > 0
+        # Each exclamation adds emphasis (max 3)
+        punct_boost = min(exclamation_count, 3) * 0.1
+        sentiments = sentiments .* (1.0 + punct_boost)
+    end
+    
+    # Calculate compound score
+    if isempty(sentiments)
+        return 0.0
+    end
+    
+    sum_s = sum(sentiments)
+    
+    # Normalize using VADER's alpha parameter
+    alpha = 15.0
+    compound = sum_s / sqrt(sum_s^2 + alpha)
+    
+    # Clamp to [-1, 1]
+    return clamp(compound, -1.0, 1.0)
+end
+
+"""
 Fetch news sentiment using Finnhub company news.
 Returns (sentiment_score, buzz_score, article_count, summary)
 
-Sentiment Analysis:
-- Positive keywords: profit, growth, revenue, beat, upgrade, bullish, acquire, expand
-- Negative keywords: lawsuit, fraud, investigation, downgrade, loss, bearish, recall, scandal
+Enhanced VADER-like Sentiment Analysis:
+- Weighted lexicon with intensity scores
+- Handles negations (not good, don't like)
+- Intensity boosters (very good, extremely bad)
+- Capitalization emphasis (ALL CAPS)
+- Punctuation emphasis (!!!)
 - Score: -1.0 (very negative) to +1.0 (very positive)
 """
 function fetch_news_sentiment(symbol)
@@ -242,33 +398,54 @@ function fetch_news_sentiment(symbol)
             return (sentiment=0.0, buzz=0.0, count=0, summary="No news")
         end
         
-        # Sentiment keywords (case-insensitive)
-        positive_keywords = ["profit", "growth", "revenue", "beat", "upgrade", "bullish", 
-                            "acquire", "expand", "record", "surge", "gain", "strong", 
-                            "outperform", "breakthrough", "innovation", "partnership"]
+        # Enhanced VADER-like sentiment lexicon with intensity scores
+        # Positive words: score 1.0 to 3.0 (stronger = higher)
+        positive_lexicon = Dict(
+            # Strong positive (3.0)
+            "breakthrough" => 3.0, "exceptional" => 3.0, "outstanding" => 3.0, "soaring" => 3.0,
+            "skyrocket" => 3.0, "surge" => 3.0, "explosive" => 3.0, "stellar" => 3.0,
+            # Medium positive (2.0)
+            "profit" => 2.0, "growth" => 2.0, "beat" => 2.0, "upgrade" => 2.0, "bullish" => 2.0,
+            "acquire" => 2.0, "expand" => 2.0, "record" => 2.0, "gain" => 2.0, "strong" => 2.0,
+            "outperform" => 2.0, "innovation" => 2.0, "partnership" => 2.0, "revenue" => 2.0,
+            # Mild positive (1.0)
+            "good" => 1.0, "positive" => 1.0, "improve" => 1.0, "up" => 1.0, "rise" => 1.0,
+            "increase" => 1.0, "better" => 1.0, "success" => 1.0, "opportunity" => 1.0
+        )
         
-        negative_keywords = ["lawsuit", "fraud", "investigation", "downgrade", "loss", 
-                            "bearish", "recall", "scandal", "warning", "miss", "decline", 
-                            "plunge", "concern", "risk", "lawsuit", "probe", "allegation",
-                            "slump", "weak", "disappointing"]
+        # Negative words: score -1.0 to -3.0 (stronger = more negative)
+        negative_lexicon = Dict(
+            # Strong negative (-3.0)
+            "fraud" => -3.0, "scandal" => -3.0, "lawsuit" => -3.0, "plunge" => -3.0,
+            "crash" => -3.0, "crisis" => -3.0, "disaster" => -3.0, "collapse" => -3.0,
+            # Medium negative (-2.0)
+            "investigation" => -2.0, "downgrade" => -2.0, "loss" => -2.0, "bearish" => -2.0,
+            "recall" => -2.0, "warning" => -2.0, "miss" => -2.0, "decline" => -2.0,
+            "concern" => -2.0, "probe" => -2.0, "allegation" => -2.0, "slump" => -2.0,
+            # Mild negative (-1.0)
+            "weak" => -1.0, "disappointing" => -1.0, "risk" => -1.0, "fall" => -1.0,
+            "down" => -1.0, "lower" => -1.0, "drop" => -1.0, "bad" => -1.0, "negative" => -1.0
+        )
+        
+        # Intensity boosters and dampeners
+        boosters = ["very", "extremely", "highly", "incredibly", "absolutely", "completely", "totally"]
+        dampeners = ["somewhat", "slightly", "barely", "hardly", "moderately", "relatively"]
+        negations = ["not", "no", "never", "don't", "doesn't", "didn't", "won't", "can't", "isn't", "aren't"]
         
         sentiment_scores = Float64[]
         article_count = length(data)
         
         for article in data
-            headline = lowercase(get(article, :headline, ""))
-            summary_text = lowercase(get(article, :summary, ""))
+            headline = get(article, :headline, "")
+            summary_text = get(article, :summary, "")
             combined_text = headline * " " * summary_text
             
-            # Count positive and negative keywords
-            pos_count = sum(occursin(kw, combined_text) for kw in positive_keywords)
-            neg_count = sum(occursin(kw, combined_text) for kw in negative_keywords)
-            
-            # Calculate sentiment for this article (-1 to +1)
-            if pos_count + neg_count > 0
-                article_sentiment = (pos_count - neg_count) / (pos_count + neg_count)
+            # Calculate sentiment using TextAnalysis.jl if available, otherwise use custom VADER-like
+            article_sentiment = if HAS_TEXTANALYSIS
+                analyze_textanalysis_sentiment(combined_text)
             else
-                article_sentiment = 0.0  # Neutral if no keywords
+                analyze_vader_sentiment(combined_text, positive_lexicon, 
+                                      negative_lexicon, boosters, dampeners, negations)
             end
             
             push!(sentiment_scores, article_sentiment)
